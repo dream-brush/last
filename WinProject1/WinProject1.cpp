@@ -7,6 +7,7 @@
 
 #define MAX_LOADSTRING 100
 
+
 // char : 1바이트 정수형
 // wchar_t : 각국의 문자를 표현하기 위해 2byte로 확장한 정수형(문자형) 타입
 
@@ -20,7 +21,15 @@ BOOL bShowText = FALSE;
 BOOL bShowRect = FALSE;
 BOOL bdrag = FALSE;
 int xStartPos, yStartPos;
-int xPos, yPos;
+int xPos, yPos, xPrevPos, yPrevPos;
+int cx, cy; //window의 넓이와 높이
+
+//깜박임 현상을 방지하기 위해 전역변수로 처리함
+HDC g_hmemdc = NULL;
+HBITMAP g_hbmp = NULL;
+HBITMAP g_holdbmp = NULL;
+DRAW_MODE dm = FREE;
+HMENU hmenu;
 
 
 // 이 코드 모듈에 포함된 함수의 선언을 전달합니다
@@ -54,6 +63,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
     {
         return FALSE;
     }
+    hmenu = ::LoadMenu(hInstance, MAKEINTRESOURCE(IDC_WINPROJECT1));
 
     // 단축키 설정을 로딩해둔다.
     HACCEL hAccelTable = LoadAccelerators(hInstance, MAKEINTRESOURCE(IDC_WINPROJECT1));
@@ -131,7 +141,18 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 }
 
 
+void UpdateCheckMenu(HWND hwnd, unsigned int id)
+{
+    HMENU hsubmenu = ::GetMenu(hwnd);
+    ::CheckMenuItem(hmenu, IDM_DRAW_CIRCLE, MF_UNCHECKED);
+    ::CheckMenuItem(hmenu, IDM_DRAW_RECT, MF_UNCHECKED);
+    ::CheckMenuItem(hmenu, IDM_DRAW_LINE, MF_UNCHECKED);
+    ::CheckMenuItem(hmenu, IDM_DRAW_FREE, MF_UNCHECKED);
 
+    //선택된 메뉴만 체크
+
+    ::CheckMenuItem(hmenu, id, MF_CHECKED);
+}
 
 //
 //  함수: WndProc(HWND, UINT, WPARAM, LPARAM)
@@ -147,6 +168,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
     switch (message)
     {
+    case WM_CREATE:
+
     case WM_COMMAND:    // 메뉴가 클릭되었을때 발생되는 메시지
         {
             int wmId = LOWORD(wParam);
@@ -167,6 +190,18 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
                 ::InvalidateRect(hWnd, NULL, TRUE); // 클라이언트 영역을 강제로 다시 그리게한다.
                 break;
 
+            case IDM_DRAW_CIRCLE:
+                UpdateCheckMenu(hWnd, IDM_DRAW_CIRCLE);
+                break;
+
+            case IDM_DRAW_LINE:
+                UpdateCheckMenu(hWnd, IDM_DRAW_LINE);
+                break;
+
+            case IDM_DRAW_FREE:
+                UpdateCheckMenu(hWnd, IDM_DRAW_FREE);
+                break;
+
 
             case IDM_EXIT:
                 DestroyWindow(hWnd);
@@ -176,14 +211,21 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
             }
         }
         break;
+    case WM_SIZE: //,윈도우의 크기가 변경될때마다 메시지가 전달됨
+        DestroyGlobalMemDC();
+        CreateGlobalMemDc(hWnd);
+        break;
+    
     case WM_PAINT:  // 윈도우 내부가 다시 그려져야 할 필요가 있을때 OS에의해 전달됨
         {
             PAINTSTRUCT ps;
             HDC hdc = BeginPaint(hWnd, &ps);
             
-            if (bShowText) ShowHello(hWnd, hdc);
-            if (bShowRect) ShowRectangle(hWnd, hdc);
-            ShowMouseLocation(hdc, xPos, yPos);
+            //if (bShowText) ShowHello(hWnd, hdc);
+            //if (bShowRect) ShowRectangle(hWnd, hdc);
+            if(g_hmemdc)
+
+                ::BitBlt(hdc, 0, 0, cx, cy, g_hmemdc, 0, 0, SRCCOPY);
 
             EndPaint(hWnd, &ps);
         }
@@ -192,6 +234,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
     case WM_LBUTTONDOWN: // 클라이언트 영역 안에서 마우스 왼쪽 버튼을 누르면]
         xStartPos = GET_X_LPARAM(lParam);
         yStartPos = GET_Y_LPARAM(lParam);
+        xPrevPos = xStartPos;
+        yPrevPos = yStartPos;
         bdrag = TRUE;
         break;
 
@@ -199,7 +243,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
     {
         xPos = GET_X_LPARAM(lParam);
         yPos = GET_Y_LPARAM(lParam);
-        InvalidateRect(hWnd, NULL, TRUE); //WM_PAINT 메시지를 강제로 발동
+        ShowMouseLocation(hWnd, xPos, yPos);
+        ::InvalidateRect(hWnd, NULL, FALSE);
     }
          
         break;
@@ -209,6 +254,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
         break;
 
     case WM_DESTROY:
+        DestroyGlobalMemDC();
         PostQuitMessage(0);
         break;
     default:
