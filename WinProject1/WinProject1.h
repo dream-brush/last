@@ -10,6 +10,11 @@ typedef enum {
 
 void ShowHello(HWND hWnd, HDC hdc);
 void ShowRectangle(HWND hWnd, HDC hdc);
-void ShowMouseLocation(HWND hwnd, int xPos, int yPos);
+void Draw(HWND hwnd, int xPos, int yPos);
 void DestroyGlobalMemDC();
 void CreateGlobalMemDc(HWND hWnd);
+
+void SelectPenColor(HWND hwnd);
+void SelectBrushColor(HWND hwnd)
+;
+

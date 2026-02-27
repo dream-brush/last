@@ -14,8 +14,12 @@ extern HDC g_hmemdc;
 extern HBITMAP g_hbmp;
 extern HBITMAP g_holdbmp;
 
-
+extern BOOL bDrawLineDone;
 extern DRAW_MODE dm;
+
+extern COLORREF g_penColor; //디폴트 컬러 Black
+extern COLORREF g_brColor; //디폴트 컬러 Black
+
 
 
 void ShowHello(HWND hWnd, HDC hdc)
@@ -44,7 +48,7 @@ void ShowHello(HWND hWnd, HDC hdc)
 void ShowRectangle(HWND hWnd, HDC hdc)
 {
     // 펜 오브젝트 생성
-    HPEN hPen = ::CreatePen(PS_SOLID, 3, RGB(0, 0, 128));
+    HPEN hPen = ::CreatePen(PS_SOLID, 30, g_penColor);
     // 브러시 오브젝트 생성
     HBRUSH hBrush = ::CreateSolidBrush(RGB(64, 255, 64));
     // DC에 그릴 오브젝트를 선택한다.
@@ -64,7 +68,65 @@ void ShowRectangle(HWND hWnd, HDC hdc)
 }
 
 
-void ShowMouseLocation(HWND hwnd, int xPos, int yPos)
+void DrawLIne(HWND hwnd, int xPos, int yPos)
+{
+    HDC hdc = ::GetDC(hwnd);
+
+    HPEN hPen = ::CreatePen(PS_SOLID, 30, g_penColor);
+    HGDIOBJ  hOldPen = ::SelectObject(hdc, hPen);
+
+
+    ::SetROP2(hdc, R2_NOTXORPEN);
+
+    MoveToEx(hdc, xStartPos, yStartPos, NULL);
+    LineTo(hdc, xPrevPos, yPrevPos);
+
+
+    MoveToEx(hdc, xStartPos, yStartPos, NULL);
+    LineTo(hdc, xPos, yPos);
+
+    ::SelectObject(hdc, hOldPen);
+    ::DeleteObject(hPen);
+    ::ReleaseDC(hwnd, hdc);
+
+    ::ReleaseDC(hwnd, hdc);
+}
+
+
+void DrawRectangle(HWND hwnd, int xPos, int yPos, BOOL isCircle = FALSE)
+{
+    HDC hdc = ::GetDC(hwnd);
+    HPEN hPen = ::CreatePen(PS_SOLID, 30, g_penColor);
+    HGDIOBJ  hOldPen = ::SelectObject(hdc, hPen);
+
+    HBRUSH hbr = ::CreateSolidBrush(g_brColor);
+    HGDIOBJ hOldbr = ::SelectObject(hdc, hbr);
+
+
+    ::SetROP2(hdc, R2_NOTXORPEN);
+
+    if (!isCircle)
+    {
+        ::Rectangle(hdc, xStartPos, yStartPos, xPrevPos, yPrevPos);
+        ::Rectangle(hdc, xStartPos, yStartPos, xPos, yPos);
+    }
+    else
+    {
+        ::Ellipse(hdc, xStartPos, yStartPos, xPrevPos, yPrevPos);
+        ::Ellipse(hdc, xStartPos, yStartPos, xPos, yPos);
+
+
+    }
+
+    ::SelectObject(hdc, hOldPen);
+    ::DeleteObject(hPen);
+    ::SelectObject(hdc, hOldbr);
+    ::DeleteObject(hbr);
+
+    ::ReleaseDC(hwnd, hdc);
+}
+
+void Draw(HWND hwnd, int xPos, int yPos)
 {
    
     // HDC hdc = ::GetDC(hWnd);
@@ -83,26 +145,53 @@ void ShowMouseLocation(HWND hwnd, int xPos, int yPos)
     wsprintfW(strOut, L"Y 좌표: %d", yPos);
     ::TextOutW(g_hmemdc, 10, 30, strOut, wcslen(strOut));
 
-    //XOR모드 설정
-    SetROP2(g_hmemdc, R2_NOTXORPEN);
 
+    HPEN hPen = ::CreatePen(PS_SOLID, 30, g_penColor);
+    HGDIOBJ  hOldPen = ::SelectObject(g_hmemdc, hPen);
+
+    HBRUSH hbr = ::CreateSolidBrush(g_brColor);
+    HGDIOBJ hOldbr = ::SelectObject(g_hmemdc, hbr);
+
+
+    //XOR모드 설정
+    //SetROP2(g_hmemdc, R2_NOTXORPEN);
+    BOOL isCircle = dm == CIRCLE;
 
     switch (dm)
     {
-    case RECTANGLE:
-        break;
     case CIRCLE:
+    case RECTANGLE:
+        if (bDrawLineDone)
+        {
+            if (isCircle)
+                Ellipse(g_hmemdc, xStartPos, yStartPos, xPos, yPos);
+            else
+                Rectangle(g_hmemdc, xStartPos, yStartPos, xPos, yPos);
+        }
+        else
+        {
+            DrawRectangle(hwnd, xPos, yPos, isCircle);
+        }
         break;
+   
+    
     case LINE:
     {
-        ::MoveToEx(g_hmemdc, xStartPos, yStartPos, NULL);
-        ::LineTo(g_hmemdc, xPrevPos, yPrevPos);
+        if (bDrawLineDone)
+        {
 
-        //시작점을 이동시킴
-        ::MoveToEx(g_hmemdc, xStartPos, yStartPos, NULL);
+            MoveToEx(g_hmemdc, xStartPos, yStartPos, NULL);
+            LineTo(g_hmemdc, xPrevPos, yPrevPos);
 
-        ::LineTo(g_hmemdc, xPos, yPos);
 
+            MoveToEx(g_hmemdc, xStartPos, yStartPos, NULL);
+            LineTo(g_hmemdc, xPos, yPos);
+        }
+        else
+        {
+            DrawLIne(hwnd, xPos, yPos);
+        }
+  
 
         break;
     }
@@ -113,7 +202,7 @@ void ShowMouseLocation(HWND hwnd, int xPos, int yPos)
         ::MoveToEx(g_hmemdc, xPrevPos, yPrevPos, NULL);
 
         ::LineTo(g_hmemdc, xPos, yPos);
-        break;
+      
     }
     }
     
@@ -123,17 +212,18 @@ void ShowMouseLocation(HWND hwnd, int xPos, int yPos)
     xPrevPos = xPos;
     yPrevPos = yPos;
 
-    HPEN hPen = ::CreatePen(PS_SOLID, 30, RGB(0, 255, 255));
-    HGDIOBJ  hOldPen = ::SelectObject(g_hmemdc, hPen);
-
+   
     //원래대로 돌려놓기
  
 
     ::SelectObject(g_hmemdc, hOldPen);
     ::DeleteObject(hPen);
 
+    ::SelectObject(g_hmemdc, hOldbr);
+    ::DeleteObject(hbr);
+
    
-    // ::ReleaseDC(hWnd, hdc);
+    ::ReleaseDC(hwnd, g_hmemdc);
 }
 
 void CreateGlobalMemDc(HWND hWnd)
@@ -164,5 +254,38 @@ void DestroyGlobalMemDC()
         ::SelectObject(g_hmemdc, g_holdbmp);
         ::DeleteObject(g_hbmp);
         ::DeleteDC(g_hmemdc);
+    }
+}
+
+
+void SelectPenColor(HWND hwnd)
+{
+    COLORREF cl[16] = { 0 };
+
+    CHOOSECOLOR cc = { 0 };
+    cc.lStructSize = sizeof(cc);
+    cc.hwndOwner = hwnd;
+    cc.rgbResult = g_penColor;
+    cc.lpCustColors = cl;
+    cc.Flags = CC_FULLOPEN | CC_RGBINIT;
+    if (ChooseColorW(&cc))
+    {
+        g_penColor = cc.rgbResult;
+    }
+}
+
+void SelectBrushColor(HWND hwnd)
+{
+    COLORREF cl[16] = { 0 };
+
+    CHOOSECOLOR cc = { 0 };
+    cc.lStructSize = sizeof(cc);
+    cc.hwndOwner = hwnd;
+    cc.rgbResult = g_brColor;
+    cc.lpCustColors = cl;
+    cc.Flags = CC_FULLOPEN | CC_RGBINIT;
+    if (ChooseColorW(&cc))
+    {
+        g_brColor = cc.rgbResult;
     }
 }

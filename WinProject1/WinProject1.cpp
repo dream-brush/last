@@ -28,7 +28,16 @@ int cx, cy; //window의 넓이와 높이
 HDC g_hmemdc = NULL;
 HBITMAP g_hbmp = NULL;
 HBITMAP g_holdbmp = NULL;
+//HPEN g_hpen = NULL;
+//HBRUSH g_hbrush = NULL;
+
+COLORREF g_penColor = RGB(0, 0, 0); //디폴트 컬러 Black
+COLORREF g_brColor = RGB(255, 255, 255); //디폴트 컬러 Black
+
+
+
 DRAW_MODE dm = FREE;
+BOOL bDrawLineDone = FALSE;
 HMENU hmenu;
 
 
@@ -187,19 +196,30 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 
             case IDM_DRAW_RECT:
                 bShowRect = TRUE;
+                dm = RECTANGLE;
                 ::InvalidateRect(hWnd, NULL, TRUE); // 클라이언트 영역을 강제로 다시 그리게한다.
                 break;
 
             case IDM_DRAW_CIRCLE:
                 UpdateCheckMenu(hWnd, IDM_DRAW_CIRCLE);
+                dm = CIRCLE;
                 break;
 
             case IDM_DRAW_LINE:
                 UpdateCheckMenu(hWnd, IDM_DRAW_LINE);
+                dm = LINE;
                 break;
 
             case IDM_DRAW_FREE:
                 UpdateCheckMenu(hWnd, IDM_DRAW_FREE);
+                dm = FREE;
+                break;
+
+            case IDM_DRAW_PENCOLOR:
+                SelectPenColor(hWnd);
+                break;
+            case IDM_DRAW_BRUSHCOLOR:
+                SelectBrushColor(hWnd);
                 break;
 
 
@@ -237,19 +257,29 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
         xPrevPos = xStartPos;
         yPrevPos = yStartPos;
         bdrag = TRUE;
+        if (dm != FREE)
+        
+            bDrawLineDone = FALSE;
         break;
 
     case WM_MOUSEMOVE:  //클라이언트 영역 안에서 마우스를 움직이면 발생되는 메시지
     {
         xPos = GET_X_LPARAM(lParam);
         yPos = GET_Y_LPARAM(lParam);
-        ShowMouseLocation(hWnd, xPos, yPos);
+        Draw(hWnd, xPos, yPos);
+        if(dm == FREE)
         ::InvalidateRect(hWnd, NULL, FALSE);
     }
          
         break;
 
     case WM_LBUTTONUP:
+        if (dm != FREE)
+        {
+            bDrawLineDone = TRUE;
+            Draw(hWnd, xPos, yPos);
+            ::InvalidateRect(hWnd, NULL, FALSE);
+        }
         bdrag = FALSE;
         break;
 
